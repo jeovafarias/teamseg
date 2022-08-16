@@ -1,0 +1,30 @@
+function [img_seg, et, st] = teamseg(img, radius, N, lambda)
+% TEAMSET  Apply TEAMSEG algorithm to estimate appearence models of an
+% image and
+%           
+%   PARAMS:
+%   - alpha, beta, gamma: image first, second and third moments
+%   - N: Number Of regions
+%   - l: number of labels in the image
+%
+%   RETURNS:
+%   - theta_hat: N-by-l matrix with the prob distribuition estimator for
+%   each region    
+%   - w_hat: l dimensional with the normalized image region sizes.
+
+    etstart = tic;
+    % Compute the number of colors in img 
+    l = length(unique(img(:)));
+    
+    % Compute the color moments in img
+    [alpha, beta, gamma] = compute_color_moments(img, radius, ceil(l/3));
+    
+    % Estimate appearence based on the moments
+    [theta_hat, ~] = tensor_estimator(alpha, beta, gamma, N);
+    et = toc(etstart);
+    
+    ststart = tic;
+    % Compute final segmentation
+    img_seg = graph_cut_segmentation(img, theta_hat, lambda);
+    st = toc(ststart);
+end

@@ -1,0 +1,114 @@
+function [alpha, beta, gamma] = compute_tensor(img, radius, max_slices)
+% COMPUTE_IMAGE_MOMENTS  Estimate image moments (1st, 2nd and 3rd order);
+%
+%   PARAMS:
+%   - img: Image to be processed
+%   - radius: neighbourhood radius
+%   - max_slices: maximum number of slices in the final gamma tensor
+%
+%   RETURNS:
+%   - alpha: First order moment
+%   - beta: Second order moment (pairs)
+%   - gamma: Third order moment (triples)
+    
+    % If max_slices is not provided, use all available slices
+    if nargin < 3, max_slices = inf; end
+    
+    % Get image size and number of colors
+    l = length(unique(img));
+    [nrow, ncol] = size(img);
+    
+    % Set minimum color to 1 to complay with matlab's indexing
+    if min(min(img)) == 0, img = img + 1; end
+    
+    % Estimate distribuition of colors
+    alpha = hist(img(:), 1:l)' / sum(hist(img(:), 1:l));
+    alpha = alpha/sum(alpha);
+    
+    % Initialize pairwise joint distribuition
+    beta = zeros(l, l);
+
+    % Initialize three way joint distribuition
+    min_l_max =  min(max_slices, l);    
+    gamma = zeros(l, l, min_l_max);
+    
+    % Sort colors based on their friquencies on I
+    [~, ind] = sort(hist(img(:), 1:l), 2, "descend");
+   
+    m = zeros(l, 1); 
+    for i = 1:l
+        m(i) = find(ind == i);
+    end
+    
+    for i = 1:nrow
+        for j = 1:ncol
+            v1 = img(i,j);
+            %% pixels on bottom side of square centered at (i,j)
+            ip = i+radius;
+            if ip <= nrow
+                for jp = max(j-radius,1):min(j+radius,ncol)
+                     v2 = img(ip,jp);
+                     beta(v1,v2) = beta(v1,v2)+1;
+                end
+            end
+            %% pixels on right side of square centered at (i,j)
+            jp = j+radius;
+            if jp <= ncol
+                for ip = max(i-radius,1):min(i+radius,nrow)
+                    v2 = img(ip,jp);
+                    beta(v1,v2) = beta(v1,v2)+1;
+                end
+            end 
+            %% Pixels on the right and botton side
+            ip = min(i+radius,nrow);
+            jp = min(j+radius,ncol);
+            v2 = img(i, jp);
+            v3 = img(ip, j);
+            
+            indx = m(v3);
+            if indx <= min_l_max
+                gamma(v1, v2, indx) = gamma(v1, v2, indx) + 1;
+                gamma(v2, v1, indx) = gamma(v2, v1, indx) + 1;
+            end
+            
+            indx = m(v2);
+            if indx <= min_l_max
+                gamma(v3, v1, indx) = gamma(v3, v1, indx) + 1;
+                gamma(v1, v3, indx) = gamma(v1, v3, indx) + 1;
+            end
+            
+            indx = m(v1);
+            if indx <= min_l_max
+                gamma(v2, v3, indx) = gamma(v2, v3, indx) + 1;
+                gamma(v3, v2, indx) = gamma(v3, v2, indx) + 1;
+            end
+            
+            ip = max(i-radius,1);
+            jp = max(j-radius,1);
+            v2 = img(i, jp);
+            v3 = img(ip, j);
+            
+            indx = m(v3);
+            if indx <= min_l_max
+                gamma(v1, v2, indx) = gamma(v1, v2, indx) + 1;
+                gamma(v2, v1, indx) = gamma(v2, v1, indx) + 1;
+            end
+                
+            indx = m(v2);
+            if indx <= min_l_max
+                gamma(v3, v1, indx) = gamma(v3, v1, indx) + 1;
+                gamma(v1, v3, indx) = gamma(v1, v3, indx) + 1;
+            end
+            
+            indx = m(v1);
+            if indx <= min_l_max
+                gamma(v2, v3, indx) = gamma(v2, v3, indx) + 1;
+                gamma(v3, v2, indx) = gamma(v3, v2, indx) + 1;
+            end
+        end
+    end
+    
+    %% Distribution Normalization   
+    beta = beta + beta';
+    beta = beta/sum(beta(:));
+end

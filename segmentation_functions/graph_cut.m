@@ -1,0 +1,74 @@
+function lb = graph_cut(A, K, print_error)
+% GRAPH_CUT  Apply min-K-cut algorthim using alpha-beta swaps 
+%           
+%   PARAMS:
+%   - A: graph's adjacency matrix
+%   - K: number of cuts
+%   - print_error: print error message when error is found
+%
+%   RETURNS:
+%   - lb: final labeling
+
+    if nargin  == 2, print_error = 0; end
+
+    epsilon = 1e-8;
+    st_weights = A(1:end-K, end-K+1:end);
+    [~, min_weights_idx] = min(st_weights, [], 2);
+    prev_seg = [min_weights_idx', 1:K];
+    
+    prev_ene = segmentation_energy(A, prev_seg, K);
+    
+    err = inf;
+    it  = 1;
+    while err > epsilon
+        ene = prev_ene;
+        for a = 1:K
+            for b = a+1:K
+                
+                ab_pos = find((prev_seg == a) | (prev_seg == b));
+                
+                A_aux = A(ab_pos, ab_pos);
+                
+                l = length(A_aux);
+                A_aux = A_aux(:, [1:l-2, l, l-1]);           
+                G = graph(A_aux, 'upper');  % Tirar simetria, colocar upper
+                
+                nn_ab = length(ab_pos);
+                s_node = nn_ab - 1;
+                t_node = nn_ab;
+                [~, ~, cut, ~] = maxflow(G, s_node, t_node);
+                aux = zeros(1, nn_ab);
+                aux(cut) = 1;
+                cut = aux;
+                
+                curr_seg = prev_seg;
+                if a > b
+                    curr_seg(ab_pos) = a * (cut == 1) + b * (cut == 0);
+                else
+                    curr_seg(ab_pos) = a * (cut == 0) + b * (cut == 1);
+                end
+                curr_ene = segmentation_energy(A, curr_seg, K);
+
+                if curr_ene < prev_ene
+                    prev_ene = curr_ene;
+                    prev_seg = curr_seg;
+                end 
+            end
+        end
+        err = abs(prev_ene - ene);
+        if print_error
+            fprintf("- Error at iteration %d: %.4f\n", it, err);
+        end
+        it = it + 1;
+    end
+    prev_seg(end - K + 1:end) = [];
+    lb = prev_seg;
+end
+
+function ene = segmentation_energy(A, curr_seg, N)
+    ene = sum(A(:));
+    for i = 1:N
+        ene = ene - sum(sum(A(curr_seg == i, curr_seg == i)));
+    end
+    ene = full(ene);
+end
